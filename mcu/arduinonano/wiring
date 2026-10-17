@@ -1,0 +1,7 @@
+Composite Video → LM1881 Pin 2 (Video In)
+LM1881 Pin 3 (VSYNC Out) → Arduino Nano D2 (INT0)
+LM1881 Pin 1 → +5V
+LM1881 Pin 8 → GND
+LM1881 Pin 5 → GND (recommended)
+LM1881 Pin 6 → optional (odd/even)
+LM1881 Pin 7 → optional (burst)
