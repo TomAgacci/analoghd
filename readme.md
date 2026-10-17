@@ -3,7 +3,7 @@ This is an analog television system to reduce the manufacturing process of displ
 Channels 1-999999
 Potential subchannels 1-999
 
-24k Max on Cathode Ray Televisions [CRTs]. Unknown if True Black.
+24k Max on Cathode Ray Televisions [CRT]. Unknown if True Black.
 
 www.thingiverse.com/thing:6267817 This would be the cutout for this project.
 
