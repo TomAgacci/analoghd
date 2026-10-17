@@ -1,0 +1,110 @@
+// ============================================================================
+// AHD-TV-1 MCU HOOK
+// Tiny controller that ONLY flips mode / class / profile pins,
+// synced to analog field pulses (~60 Hz or whatever your divider outputs).
+// ============================================================================
+
+typedef enum {
+    MODE_NTSC_30 = 0,   // 00
+    MODE_AHD_100 = 1,   // 01
+    MODE_AHD_1000 = 2   // 10
+} FrameMode;
+
+typedef enum {
+    L0_LDTV        = 0,
+    L1_SD_480      = 1,
+    L2_HD_720      = 2,
+    L3_FULLHD_1080 = 3,
+    L4_4K          = 4,
+    L5_8K          = 5,
+    L6_16K_24KLINE = 6
+} IllusionClass;
+
+typedef enum {
+    PROF_BREATHING_FIELD = 0,
+    PROF_CHROMATIC_DRIFT = 1,
+    PROF_GHOSTWAVE_BLINK = 2,
+    PROF_WHITEOUT        = 3
+} IllusionProfile;
+
+// Pin assignments (adjust to your MCU)
+#define PIN_FIELD_SYNC   2   // input: analog divider field pulse
+#define PIN_MODE_0       3   // output: mode select bit 0
+#define PIN_MODE_1       4   // output: mode select bit 1
+#define PIN_CLASS_0      5   // output: class select bit 0
+#define PIN_CLASS_1      6   // output: class select bit 1
+#define PIN_CLASS_2      7   // output: class select bit 2
+#define PIN_PROFILE_0    8   // output: profile select bit 0
+#define PIN_PROFILE_1    9   // output: profile select bit 1
+
+volatile bool safeToSwitch = false;
+
+FrameMode       currentMode   = MODE_NTSC_30;
+IllusionClass   currentClass  = L3_FULLHD_1080;
+IllusionProfile currentProfile= PROF_BREATHING_FIELD;
+
+void IRAM_ATTR onFieldSyncInterrupt() {
+    safeToSwitch = true;
+}
+
+void writeModePins(FrameMode m) {
+    switch (m) {
+        case MODE_NTSC_30:
+            digitalWrite(PIN_MODE_0, LOW);
+            digitalWrite(PIN_MODE_1, LOW);
+            break;
+        case MODE_AHD_100:
+            digitalWrite(PIN_MODE_0, HIGH);
+            digitalWrite(PIN_MODE_1, LOW);
+            break;
+        case MODE_AHD_1000:
+            digitalWrite(PIN_MODE_0, LOW);
+            digitalWrite(PIN_MODE_1, HIGH);
+            break;
+    }
+}
+
+void writeClassPins(IllusionClass c) {
+    digitalWrite(PIN_CLASS_0, (c >> 0) & 1);
+    digitalWrite(PIN_CLASS_1, (c >> 1) & 1);
+    digitalWrite(PIN_CLASS_2, (c >> 2) & 1);
+}
+
+void writeProfilePins(IllusionProfile p) {
+    digitalWrite(PIN_PROFILE_0, (p >> 0) & 1);
+    digitalWrite(PIN_PROFILE_1, (p >> 1) & 1);
+}
+
+void setup() {
+    pinMode(PIN_FIELD_SYNC, INPUT);
+    pinMode(PIN_MODE_0, OUTPUT);
+    pinMode(PIN_MODE_1, OUTPUT);
+    pinMode(PIN_CLASS_0, OUTPUT);
+    pinMode(PIN_CLASS_1, OUTPUT);
+    pinMode(PIN_CLASS_2, OUTPUT);
+    pinMode(PIN_PROFILE_0, OUTPUT);
+    pinMode(PIN_PROFILE_1, OUTPUT);
+
+    attachInterrupt(digitalPinToInterrupt(PIN_FIELD_SYNC),
+                    onFieldSyncInterrupt,
+                    RISING);
+
+    writeModePins(currentMode);
+    writeClassPins(currentClass);
+    writeProfilePins(currentProfile);
+}
+
+void loop() {
+    if (safeToSwitch) {
+        // Here you can change currentMode/currentClass/currentProfile
+        // based on buttons, serial commands, presets, etc.
+        // For now, just re-assert pins at safe boundary:
+        writeModePins(currentMode);
+        writeClassPins(currentClass);
+        writeProfilePins(currentProfile);
+        safeToSwitch = false;
+    }
+
+    // Example: cycle profiles every N field syncs (pseudo)
+    // (You’d track a counter incremented in the ISR or here.)
+}
