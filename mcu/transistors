@@ -1,0 +1,124 @@
+Transistor family
+All small‑signal NPN: 2N3904 everywhere (Q1–Q12).
+
+If you want a bit more robustness on the dot driver:
+
+QD1/QD2: 2N2222 instead of 2N3904 (optional).
+
+Core timing (oscillator + dividers)
+Master oscillator (Q1 + crystal):
+
+Crystal: 3.579545 MHz NTSC.
+
+Bias resistors:
+
+Rbias1: 1 MΩ from base to collector.
+
+Rbias2: 100 kΩ from base to ground.
+
+Load caps:
+
+C1, C2: 22–33 pF to ground.
+
+Divider chain (Q2–Q5):
+
+Each stage:
+
+Collector resistor: 10 kΩ to +5 V.
+
+Base resistor (from previous stage): 47 kΩ.
+
+Simple RC for shaping if needed: 1 nF to ground at each node.
+
+Frame‑rate taps (approximate)
+You’ll pick taps from the divider chain to get:
+
+FR_30: ~30 Hz (divide by ~120 k from 3.58 MHz; you’ll do this in multiple stages).
+
+FR_100: ~100 Hz (different tap).
+
+FR_1000: ~1000 Hz (higher‑frequency tap).
+
+For a first build, don’t chase exact NTSC math—aim for:
+
+Stage 1: ÷10 → ~358 kHz
+
+Stage 2: ÷10 → ~35.8 kHz
+
+Stage 3: ÷10 → ~3.58 kHz
+
+Stage 4: ÷10 → ~358 Hz
+
+Then derive:
+
+FR_30: divide 358 Hz by ~12 (extra small divider or RC gating).
+
+FR_100: use ~100 Hz tap (e.g. divide 358 Hz by ~3.6).
+
+FR_1000: use ~1 kHz from earlier stage (e.g. 3.58 kHz / ~3.6).
+
+You can implement the last “divide by ~3–12” with simple transistor multivibrators or CMOS counters if you want cleaner numbers.
+
+Envelope networks (profiles)
+Breathing Field:
+
+R_BREATH: 100 kΩ
+
+C_BREATH: 10 µF
+
+Driven by a low‑frequency oscillator (~0.2–0.5 Hz) or gated frame pulses.
+
+Chromatic Drift:
+
+Same RC as breathing, but used to step LED color selection:
+
+R_DRIFT: 100 kΩ
+
+C_DRIFT: 4.7–10 µF
+
+Ghostwave:
+
+Faster, more stepped envelope:
+
+R_GW: 47 kΩ
+
+C_GW: 4.7 µF
+
+Whiteout:
+
+Very fast rise, short decay:
+
+R_WO: 10 kΩ
+
+C_WO: 1 µF
+
+Selector transistor biasing
+For all selector transistors (QM1–QM3, QC0–QC6, QP0–QP3):
+
+Base resistors from MCU pins: 4.7–10 kΩ.
+
+Collector resistors (if needed): 10 kΩ to +5 V.
+
+They act as low‑side switches pulling a network node to ground or enabling it.
+
+Dot driver
+QD1 (2N2222 or 2N3904):
+
+Base resistor from LUMA_ENV_OUT: 4.7 kΩ.
+
+Collector: to CRT video input (through resistor).
+
+Emitter: to ground.
+
+Output resistor to CRT video input:
+
+R_DOT: 1 kΩ–2.2 kΩ (start at 1 kΩ, adjust brightness).
+
+If using an LED instead of CRT:
+
+LED + series resistor (e.g. 470–1 kΩ) from +5 V to QD1 collector.
+
+Supply and rails
+VCC: +5 V for logic and analog.
+
+If CRT video input expects ~1 Vpp, the 2N3904/2N2222 with 1 kΩ series will be in the right ballpark.
