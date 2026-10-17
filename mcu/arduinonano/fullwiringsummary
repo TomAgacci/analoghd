@@ -1,0 +1,19 @@
+480i Composite → LM1881 → Nano D2 (VSYNC)
+Nano D9 → 1k → TV Composite In
+Nano D10 → 1k → TV Composite In (dual-pulse mode only)
+Nano GND → TV Composite Ground
+
+Buttons (mode 1 only):
+D3 → BTN_L0 → GND
+D4 → BTN_L1 → GND
+D5 → BTN_L2 → GND
+D6 → BTN_L3 → GND
+D7 → BTN_L4 → GND
+D8 → BTN_L5 → GND
+D11 → BTN_L6 → GND
+
+Power:
+Nano +5V → +5V rail
+Nano GND → GND rail
+LM1881 +5V → +5V rail
+LM1881 GND → GND rail
