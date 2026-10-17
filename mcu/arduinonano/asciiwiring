@@ -1,0 +1,42 @@
+                           ┌──────────────────────────────┐
+                           │        480i COMPOSITE        │
+                           │        VIDEO SOURCE           │
+                           └──────────────┬───────────────┘
+                                          │
+                                          ▼
+                               ┌──────────────────┐
+                               │     LM1881       │
+                               │  SYNC STRIPPER   │
+                               └──────────────────┘
+                           Pin 2 (VIDEO IN)  ← Composite
+                           Pin 3 (VSYNC OUT) →──────────────┐
+                           Pin 1 (+5V)       → +5V           │
+                           Pin 8 (GND)       → GND           │
+                                                          ┌──▼──────────────┐
+                                                          │  Arduino Nano   │
+                                                          │   (ATmega328P)  │
+                                                          └─────────────────┘
+VSYNC → D2 (INT0)  ────────────────────────────────────────┘
+GND   → GND
+
+LUMA OUT (illusion pulse)
+D9 (OC1A) ─── 1kΩ ───► TV Composite In
+
+CHROMA OUT (dual‑pulse mode)
+D10 (OC1B) ── 1kΩ ───► TV Composite In
+
+Buttons (mode 1 only, active‑low)
+D3  ─── BTN_L0 ─── GND
+D4  ─── BTN_L1 ─── GND
+D5  ─── BTN_L2 ─── GND
+D6  ─── BTN_L3 ─── GND
+D7  ─── BTN_L4 ─── GND
+D8  ─── BTN_L5 ─── GND
+D11 ─── BTN_L6 ─── GND
+
+Power
++5V → Nano +5V
+GND → Nano GND
++5V → LM1881 Pin 1
+GND → LM1881 Pin 8
+GND → TV Composite Ground
