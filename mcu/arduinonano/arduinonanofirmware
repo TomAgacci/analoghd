@@ -1,0 +1,78 @@
+// ============================================================================
+// AHD-TV-1 Minimal Arduino Nano Firmware
+// Pure Arduino C++
+// Locks to 480i VSYNC and outputs a single illusion pulse per frame.
+// ============================================================================
+
+#define PIN_VSYNC_IN   2   // INT0: VSYNC from LM1881 or similar
+#define PIN_OUT        9   // OC1A: Timer1 PWM output to TV/LED
+
+volatile bool vsyncFlag   = false;
+volatile uint32_t frameId = 0;
+
+// Illusion classes as pulse widths (µs)
+const uint16_t PW_L0 = 12000;  // LDTV
+const uint16_t PW_L1 = 9000;   // SD
+const uint16_t PW_L2 = 6000;   // 720 illusion
+const uint16_t PW_L3 = 4000;   // 1080 illusion
+const uint16_t PW_L4 = 2000;   // 4K illusion
+const uint16_t PW_L5 = 1000;   // 8K illusion
+const uint16_t PW_L6 = 500;    // 16K–24K illusion
+
+// Pick your illusion class here:
+uint16_t currentPulse = PW_L6;
+
+// VSYNC interrupt: fires once per field/frame (from 480i input)
+void vsyncISR() {
+    vsyncFlag = true;
+    frameId++;
+}
+
+// Configure Timer1 for fast PWM, direct tick control
+void setupTimer1() {
+    pinMode(PIN_OUT, OUTPUT);
+
+    // Fast PWM, TOP = ICR1, no prescaler (16 MHz)
+    TCCR1A = (1 << WGM11);                    // mode bits
+    TCCR1B = (1 << WGM13) | (1 << WGM12) |
+             (1 << CS10);                    // no prescale
+}
+
+// Generate one illusion pulse locked to VSYNC
+void generatePulse(uint16_t widthMicros) {
+    // 16 MHz clock → 1 tick = 1/16 µs
+    uint16_t ticks = (uint16_t)(widthMicros * 16);
+
+    ICR1  = ticks;        // pulse length
+    OCR1A = ticks / 2;    // 50% duty
+
+    // Enable output
+    TCCR1A |= (1 << COM1A1);
+    delayMicroseconds(widthMicros);
+    // Disable output until next frame
+    TCCR1A &= ~(1 << COM1A1);
+}
+
+void setup() {
+    pinMode(PIN_VSYNC_IN, INPUT);
+
+    // Attach VSYNC interrupt on rising edge
+    attachInterrupt(digitalPinToInterrupt(PIN_VSYNC_IN), vsyncISR, RISING);
+
+    setupTimer1();
+}
+
+void loop() {
+    if (vsyncFlag) {
+        vsyncFlag = false;
+
+        // One illusion pulse per 480i frame
+        generatePulse(currentPulse);
+
+        // Optional: cycle illusion classes over time
+        /*
+        if (frameId % 600 == 0) currentPulse = PW_L4;
+        if (frameId % 1200 == 0) currentPulse = PW_L6;
+        */
+    }
+}
