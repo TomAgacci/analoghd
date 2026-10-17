@@ -1,0 +1,210 @@
+Stage 1 – Master oscillator (burst core)
+Parts:
+
+1× 2N3904 (Q1)
+
+1× 3.579545 MHz NTSC crystal
+
+1× 1 MΩ (base–collector)
+
+1× 100 kΩ (base–ground)
+
+2× 22–33 pF (crystal load caps)
+
+Build:
+
+Wire Q1 as a Pierce oscillator:
+
+Crystal between collector and base node.
+
+1 MΩ from collector to base.
+
+100 kΩ from base to ground.
+
+Two caps from crystal ends to ground.
+
+Power Q1 from +5 V via a 10 kΩ collector resistor.
+
+Goal: Stable ~3.58 MHz at CRYSTAL_OSC_OUT.
+
+Stage 2 – Divider chain (frame/field/phase taps)
+Parts (per stage):
+
+3–4× 2N3904 (Q2–Q5)
+
+Per stage: 10 kΩ collector resistor, 47 kΩ base resistor, 1 nF to ground (optional shaping).
+
+Build:
+
+Cascade transistor flip‑flops or simple multivibrators from CRYSTAL_OSC_OUT.
+
+Aim for rough ladder:
+
+Stage 1: ~358 kHz
+
+Stage 2: ~35.8 kHz
+
+Stage 3: ~3.58 kHz
+
+Stage 4: ~358 Hz
+
+Derive:
+
+FR_30 ≈ 30 Hz from 358 Hz via extra divide.
+
+FR_100 ≈ 100 Hz tap.
+
+FR_1000 ≈ 1 kHz tap.
+
+FIELD_SYNC ≈ 60 Hz.
+
+PHASE_CLK ≈ 15 kHz.
+
+Goal: Clean logic‑level pulses at those nodes.
+
+Stage 3 – Mode selector (frame‑rate)
+Parts:
+
+3× 2N3904 (QM1–QM3)
+
+3× 10 kΩ collector resistors
+
+3× 4.7–10 kΩ base resistors (from MCU pins)
+
+Build:
+
+Connect:
+
+QM1 collector to FR_30
+
+QM2 collector to FR_100
+
+QM3 collector to FR_1000
+
+Tie all emitters to ground.
+
+OR their collectors together to FRAME_CLK_OUT via small resistor if needed.
+
+Drive bases from MODE_SEL[1:0] decode so only one QM is ON at a time.
+
+Goal: FRAME_CLK_OUT switches between 30/100/1000 Hz under MCU control.
+
+Stage 4 – Illusion class selector (pulse‑width/phase networks)
+Parts:
+
+7× 2N3904 (QC0–QC6)
+
+7× RC networks (one per class L0–L6)
+
+7× 4.7–10 kΩ base resistors
+
+Build:
+
+For each class:
+
+Make an RC network from FRAME_CLK_OUT to a node PW_Lx_NODE with:
+
+L0: 100 kΩ + 10 µF
+
+L1: 100 kΩ + 8.2 µF
+
+L2: 100 kΩ + 6.8 µF
+
+L3: 100 kΩ + 4.7 µF
+
+L4: 47 kΩ + 3.3 µF
+
+L5: 47 kΩ + 2.2 µF
+
+L6: 47 kΩ + 1 µF
+
+Each QCx:
+
+Collector to its PW_Lx_NODE.
+
+Emitters tied together to PULSE_CTRL_OUT.
+
+Bases driven from CLASS_SEL[2:0] decode (one‑hot).
+
+Goal: PULSE_CTRL_OUT gets a class‑dependent pulse width/phase.
+
+Stage 5 – Profile selector + envelopes
+Parts:
+
+4× 2N3904 (QP0–QP3)
+
+RC envelopes:
+
+Breathing: 100 kΩ + 10 µF
+
+Drift: 100 kΩ + 4.7–10 µF
+
+Ghostwave: 47 kΩ + 4.7 µF
+
+Whiteout: 10 kΩ + 1 µF
+
+4× 4.7–10 kΩ base resistors
+
+Build:
+
+Drive each envelope from FRAME_CLK_OUT or FIELD_SYNC into its RC node.
+
+QP0–QP3:
+
+Collectors to each envelope node.
+
+Emitters tied to LUMA_ENV_IN.
+
+Bases driven from PROFILE_SEL[1:0] decode.
+
+Goal: LUMA_ENV_IN carries the chosen profile’s luma envelope.
+
+Stage 6 – Dot driver + CRT/LED interface
+Parts:
+
+1× 2N2222 or 2N3904 (QD1)
+
+1× 4.7 kΩ base resistor
+
+1× 1–2.2 kΩ output resistor
+
+CRT video input or LED + series resistor
+
+Build:
+
+Combine PULSE_CTRL_OUT and LUMA_ENV_IN (simple summing node or gating) into QD1 base via 4.7 kΩ.
+
+QD1 emitter to ground.
+
+QD1 collector to CRT video input through 1–2.2 kΩ, or to LED + resistor.
+
+Goal: Single dot whose brightness and timing follow the illusion engine.
+
+Stage 7 – MCU hook
+Parts:
+
+Small MCU (e.g. ATtiny/Arduino Nano)
+
+7× 4.7–10 kΩ resistors (to selector bases)
+
+Build:
+
+Input:
+
+PIN_FIELD_SYNC from FIELD_SYNC node (via 10 kΩ, optional buffer).
+
+Outputs:
+
+MODE_0/1 → mode selector base network.
+
+CLASS_0/1/2 → class selector decode.
+
+PROFILE_0/1 → profile selector decode.
+
+Use the code we wrote to:
+
+Attach interrupt on FIELD_SYNC.
+
+Flip pins only when safeToSwitch is true.
+
+Goal: Clean, field‑aligned switching of mode/class/profile without disturbing analog timing.
