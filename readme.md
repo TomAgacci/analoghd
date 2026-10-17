@@ -11,6 +11,10 @@ www.thingiverse.com/thing:6267817 This would be the cutout for this project.
 
 This work is licensed under a Creative Commons Attribution–NonCommercial–NoDerivatives 4.0 License.
 
+# AHD-TV-1 Nano - Summary
+
+Working on a full analog/digital CRT expansion system that turns any 480i input into a 24k‑class illusion engine. The Arduino Nano firmware in this repo locks to real VSYNC, then fires ultra‑precise luma/chroma pulses that the analog core shapes into HD → 4K → 8K → 24k virtual resolution. No pixels, no framebuffer — just pure timing, RC networks, and a single dot that becomes an entire image through temporal rendering. Retro hardware, modern illusion.
+
 # AHD-TV-1 CRT Expansion Board — Technology Summary
 
 The AHD-TV-1 CRT Expansion Board is a hybrid analog/digital timing engine that produces
