@@ -1,0 +1,174 @@
+Full wiring map (MCU ↔ analog board)
+Inputs to MCU:
+
+PIN_FIELD_SYNC (MCU pin 2)
+
+Connect to analog divider’s field pulse (~60 Hz or your chosen rate).
+
+Use a resistor (e.g. 10 k) and, if needed, a small transistor buffer if the divider node is delicate.
+
+Outputs from MCU to analog selector network:
+
+Mode select:
+
+PIN_MODE_0 (MCU pin 3) → analog board node MODE_SEL0
+
+PIN_MODE_1 (MCU pin 4) → analog board node MODE_SEL1
+
+These go to transistor selector for frame‑rate divider taps.
+
+Illusion class select:
+
+PIN_CLASS_0 (MCU pin 5) → CLASS_SEL0
+
+PIN_CLASS_1 (MCU pin 6) → CLASS_SEL1
+
+PIN_CLASS_2 (MCU pin 7) → CLASS_SEL2
+
+These go to transistor selector for pulse‑width / phase‑grid networks.
+
+Profile select:
+
+PIN_PROFILE_0 (MCU pin 8) → PROFILE_SEL0
+
+PIN_PROFILE_1 (MCU pin 9) → PROFILE_SEL1
+
+These go to transistor selector for envelope RC networks (Breathing / Drift / Ghostwave / Whiteout).
+
+All MCU outputs should drive transistor bases (via base resistors, e.g. 4.7–10 k) rather than directly switching analog nodes.
+
+Transistor‑level selector schematic (conceptual)
+1. Mode selector (frame‑rate taps)
+Nodes from divider chain:
+
+FR_30  → 29.97 Hz tap
+
+FR_100 → 100 Hz tap
+
+FR_1000→ 1000 Hz tap
+
+Transistors:
+
+QM1, QM2, QM3 (NPN) as analog switches.
+
+Logic:
+
+MCU pins MODE_SEL0, MODE_SEL1 drive QM1–QM3 bases via resistors.
+
+Only one transistor is turned ON at a time, routing its frame‑rate node to FRAME_CLK_OUT.
+
+Example truth table:
+
+MODE_SEL1 MODE_SEL0
+
+00 → QM1 ON → FRAME_CLK_OUT = FR_30
+
+01 → QM2 ON → FRAME_CLK_OUT = FR_100
+
+10 → QM3 ON → FRAME_CLK_OUT = FR_1000
+
+2. Illusion class selector (pulse‑width / phase network)
+Networks:
+
+PW_L0, PW_L1, … PW_L6 → different RC/pulse‑width/phase grids.
+
+Transistors:
+
+QC0–QC6 (NPN) each gating one network to PULSE_CTRL_OUT.
+
+Logic:
+
+MCU pins CLASS_SEL0..2 decoded either:
+
+directly (each transistor base wired to a simple 3‑bit decoder), or
+
+via a small diode/resistor matrix.
+
+Only one QCx ON at a time → selects illusion class.
+
+3. Profile selector (envelope RC networks)
+Networks:
+
+ENV_BREATHING
+
+ENV_DRIFT
+
+ENV_GHOSTWAVE
+
+ENV_WHITEOUT
+
+Transistors:
+
+QP0–QP3 (NPN) each connecting one envelope network to LUMA_ENV_IN.
+
+Logic:
+
+MCU pins PROFILE_SEL0..1 decoded to one‑hot control of QP0–QP3.
+
+Board layout plan (CRT Expansion PCB)
+Think in three horizontal bands:
+
+Band 1: Timing core (top)
+Crystal / master oscillator (Q1 + crystal or RC).
+
+Divider chain (Q2–Q5) generating:
+
+FR_30, FR_100, FR_1000
+
+FIELD_SYNC
+
+PHASE_CLK (virtual horizontal).
+
+Place these close together, short traces, good ground.
+
+Band 2: Illusion envelopes + selectors (middle)
+RC networks for:
+
+pulse‑width / phase grids (L0–L6).
+
+envelope profiles (Breathing, Drift, Ghostwave, Whiteout).
+
+Selector transistors:
+
+Mode selector (QM1–QM3).
+
+Class selector (QC0–QC6).
+
+Profile selector (QP0–QP3).
+
+MCU header / footprint:
+
+Place MCU near this band.
+
+Short runs from MCU pins to selector transistor bases.
+
+Band 3: Dot driver + CRT/LED interface (bottom)
+Dot driver transistor(s) (QD1, QD2):
+
+Input: PULSE_CTRL_OUT + LUMA_ENV_OUT.
+
+Output:
+
+to CRT video input pad, or
+
+to LED connector pads.
+
+Connectors:
+
+Power header (+5 V / +12 V / GND).
+
+CRT interface header (video in/out, optional sync).
+
+LED header (if you use a physical dot).
+
+Route:
+
+Timing signals downward: FRAME_CLK_OUT, PHASE_CLK, FIELD_SYNC.
+
+Control signals from selectors into dot driver.
+
+Keep:
+
+Analog timing traces short and clean.
+
+MCU traces separated enough to avoid digital noise coupling into the most sensitive analog nodes (crystal, dividers, envelopes).
