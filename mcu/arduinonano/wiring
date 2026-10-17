@@ -5,3 +5,37 @@ LM1881 Pin 8 → GND
 LM1881 Pin 5 → GND (recommended)
 LM1881 Pin 6 → optional (odd/even)
 LM1881 Pin 7 → optional (burst)
+
+Arduino Nano D9 (OC1A) → 1k resistor → TV Composite Input
+Arduino GND → TV Composite Ground
+
+Arduino Nano D10 (OC1B) → 1k resistor → TV Composite Input (same point as D9)
+
+Multi Button Illusion Class Selector
+Button → Nano Pin
+BTN_L0 → D3
+BTN_L1 → D4
+BTN_L2 → D5
+BTN_L3 → D6
+BTN_L4 → D7
+BTN_L5 → D8
+BTN_L6 → D11   (moved off D9 to avoid conflict)
+
+Each Button
+One side → Nano pin (D3–D11)
+Other side → GND
+Nano pin mode → INPUT_PULLUP
+
+Serial Control Engine (firmware 2)
+USB cable → Arduino Nano
+
+Power Wiring
+Arduino Nano +5V → +5V rail
+Arduino Nano GND → Ground rail
+LM1881 +5V → same +5V rail
+LM1881 GND → same ground rail
+TV Composite Ground → same ground rail
+
+Optional LED Dot Output
+Arduino D9 → 470Ω → LED → +5V
+Arduino GND → LED return
