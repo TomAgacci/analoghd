@@ -1,0 +1,216 @@
+// ============================================================================
+// AHD-TV-1 CHANNEL / SUBCHANNEL SPACE + ILLUSION ENGINE
+// Logical 0..999999 channels, each with 1..999 subchannels.
+// This is still BEHAVIORAL SPEC, meant to be mapped to analog timing blocks.
+// ============================================================================
+
+
+// ---------------------------------------------------------------------------
+// 12. CHANNEL AND SUBCHANNEL DEFINITIONS
+// ---------------------------------------------------------------------------
+
+typedef struct {
+    unsigned long   channelId;      // 0..999999
+    unsigned int    subchannelId;   // 1..999
+    FrameMode       mode;           // NTSC_30 / AHD_100 / AHD_1000
+    IllusionClass   illusionClass;  // L0..L6
+    IllusionProfile profile;        // breathing, drift, ghostwave, etc.
+} AHDTV1Channel;
+
+// Simple constructor
+AHDTV1Channel makeChannel(unsigned long ch, unsigned int sub,
+                          FrameMode mode,
+                          IllusionClass cls,
+                          IllusionProfile prof) {
+    AHDTV1Channel c;
+    c.channelId     = ch;
+    c.subchannelId  = sub;
+    c.mode          = mode;
+    c.illusionClass = cls;
+    c.profile       = prof;
+    return c;
+}
+
+
+// ---------------------------------------------------------------------------
+// 13. MAPPING CHANNELS TO PHYSICAL RF / OUTPUT SLOTS (ABSTRACT)
+// ---------------------------------------------------------------------------
+
+typedef struct {
+    double          rfCenterFreqHz; // e.g., 100e6 for 100 MHz
+    double          rfSlotWidthHz;  // e.g., 100e3 for 100 kHz per slot
+    unsigned int    rfSlotIndex;    // 0..N_RF-1
+} AHDTV1PhysicalSlot;
+
+// Map logical channel to RF slot (mod N_RF)
+AHDTV1PhysicalSlot mapChannelToSlot(unsigned long channelId,
+                                    double rfCenterFreqHz,
+                                    double rfSlotWidthHz,
+                                    unsigned int numSlots) {
+    AHDTV1PhysicalSlot s;
+    unsigned int slot = (unsigned int)(channelId % numSlots);
+
+    s.rfCenterFreqHz = rfCenterFreqHz + (double)slot * rfSlotWidthHz;
+    s.rfSlotWidthHz  = rfSlotWidthHz;
+    s.rfSlotIndex    = slot;
+    return s;
+}
+
+
+// ---------------------------------------------------------------------------
+// 14. ILLUSION CLASS TABLE (FOR QUICK LOOKUP / LABELING)
+// ---------------------------------------------------------------------------
+
+const char *illusionClassName(IllusionClass cls) {
+    switch (cls) {
+        case L0_LDTV:        return "L0 LDTV (400x300 / 400x225 virtual)";
+        case L1_SD_480:      return "L1 SD 480-class (640x480 / 640x360 virtual)";
+        case L2_HD_720:      return "L2 HD 720-class (1280x960 / 1280x720 virtual)";
+        case L3_FULLHD_1080: return "L3 Full HD 1080-class (1920x1440 / 1920x1080 virtual)";
+        case L4_4K:          return "L4 4K-class (3840x2880 / 3840x2160 virtual)";
+        case L5_8K:          return "L5 8K-class (7680x5760 / 7680x4320 virtual)";
+        case L6_16K_24KLINE: return "L6 16K / 24k-line-class (15360x11520 / 15360x8640 virtual)";
+    }
+    return "Unknown";
+}
+
+
+// ---------------------------------------------------------------------------
+// 15. FRAME MODE NAME TABLE
+// ---------------------------------------------------------------------------
+
+const char *frameModeName(FrameMode mode) {
+    switch (mode) {
+        case MODE_NTSC_30:   return "MODE_NTSC_30 (29.97 fps, full NTSC hertz)";
+        case MODE_AHD_100:   return "MODE_AHD_100 (100 fps high-frame-rate illusion)";
+        case MODE_AHD_1000:  return "MODE_AHD_1000 (~1000 fps hyper-smooth illusion)";
+    }
+    return "Unknown";
+}
+
+
+// ---------------------------------------------------------------------------
+// 16. ILLUSION PROFILE NAME TABLE
+// ---------------------------------------------------------------------------
+
+const char *profileName(IllusionProfile prof) {
+    switch (prof) {
+        case PROF_BREATHING_FIELD:   return "Breathing Field";
+        case PROF_CHROMATIC_DRIFT:   return "Chromatic Drift";
+        case PROF_GHOSTWAVE_BLINK:   return "Ghostwave (Blink-Synced)";
+        case PROF_WHITEOUT:          return "Whiteout";
+        case PROF_STATIC_FIELD:      return "Static Field";
+    }
+    return "Unknown";
+}
+
+
+// ---------------------------------------------------------------------------
+// 17. CHANNEL CONFIG TO ENGINE CONFIG
+// ---------------------------------------------------------------------------
+
+AHDTV1Config configFromChannel(const AHDTV1Channel *ch) {
+    return initConfig(ch->mode, ch->illusionClass, ch->profile);
+}
+
+
+// ---------------------------------------------------------------------------
+// 18. RUN A SINGLE CHANNEL (ABSTRACT ENGINE LOOP)
+// ---------------------------------------------------------------------------
+
+void runChannel(const AHDTV1Channel *ch) {
+    AHDTV1Config cfg = configFromChannel(ch);
+
+    unsigned long frameIndex = 0;
+    unsigned long fieldIndex = 0;
+
+    // In a real analog box, this "loop" is just continuous oscillator/divider behavior.
+    while (true) {
+        AHDTV1FrameState st = updateFrame(&cfg, frameIndex, fieldIndex);
+
+        // Hardware mapping:
+        // - Use cfg + st to drive:
+        //   - dot brightness (lumaLevel)
+        //   - dot color/filter (chromaPhase)
+        //   - pulse timing (phaseOffset, pulseWidth)
+        // - Output can be:
+        //   - LED dot driver
+        //   - CRT center spot via video input
+        //   - RF/composite-like analog signal
+
+        frameIndex++;
+        fieldIndex += 2; // conceptual: 2 fields per frame
+
+        // Timing enforced by divider chain off F_BURST_NTSC or other master oscillator.
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// 19. EXAMPLE CHANNEL MAP (LOGICAL)
+// ---------------------------------------------------------------------------
+
+void exampleChannelMap() {
+    // Channel 0, subchannel 1: NTSC-like HD Breathing Field, 1080-class illusion
+    AHDTV1Channel ch0_1 = makeChannel(
+        0, 1,
+        MODE_NTSC_30,
+        L3_FULLHD_1080,
+        PROF_BREATHING_FIELD
+    );
+
+    // Channel 10, subchannel 100: Chromatic Drift, 4K-class illusion at 100 fps
+    AHDTV1Channel ch10_100 = makeChannel(
+        10, 100,
+        MODE_AHD_100,
+        L4_4K,
+        PROF_CHROMATIC_DRIFT
+    );
+
+    // Channel 999999, subchannel 999: Ghostwave, 16K/24k-line-class at 1000 fps
+    AHDTV1Channel chMax = makeChannel(
+        999999, 999,
+        MODE_AHD_1000,
+        L6_16K_24KLINE,
+        PROF_GHOSTWAVE_BLINK
+    );
+
+    // These are logical definitions; in hardware you choose which one to "run"
+    // by wiring switches, jumpers, or simple selector logic.
+}
+
+
+// ---------------------------------------------------------------------------
+// 20. PERCEPTUAL CERTIFICATION REPORT (ABSTRACT)
+// ---------------------------------------------------------------------------
+
+void printCertificationReport(const AHDTV1Channel *ch) {
+    AHDTV1Config cfg = configFromChannel(ch);
+
+    printf("Channel %lu.%03u\n", ch->channelId, ch->subchannelId);
+    printf("  Mode:           %s\n", frameModeName(ch->mode));
+    printf("  Illusion Class: %s\n", illusionClassName(ch->illusionClass));
+    printf("  Profile:        %s\n", profileName(ch->profile));
+
+    printf("  Perceptual HD:        %s\n", isPerceptualHD(&cfg) ? "YES" : "NO");
+    printf("  Perceptual UHD/24K:   %s\n", isPerceptualUHD_24K(&cfg) ? "YES" : "NO");
+}
+
+
+// ============================================================================
+// This extended "code" gives you:
+// - Logical channels (0..999999) and subchannels (1..999).
+// - Mapping from channel definitions to timing configs.
+// - Names and labels for illusion classes, modes, and profiles.
+// - A conceptual engine loop per channel.
+// - A perceptual certification report.
+//
+// All of it is meant to be implemented as:
+// - One crystal (3.579545 MHz or other).
+// - Divider chain (flip-flops, multivibrators).
+// - RC envelopes for luma/chroma.
+// - Transistor drivers for the dot and output.
+//
+// You can treat this as your "AHD-TV-1 ENGINE SPEC FILE" and translate it
+// directly into a small analog board.
+// ============================================================================
