@@ -1,0 +1,180 @@
+// ============================================================================
+// 12. CHANNEL AND SUBCHANNEL DEFINITIONS
+// ============================================================================
+
+typedef struct {
+    unsigned long   channelId;      // 0..999999
+    unsigned int    subchannelId;   // 1..999
+    FrameMode       mode;           // NTSC_30 / AHD_100 / AHD_1000
+    IllusionClass   illusionClass;  // L0..L6
+    IllusionProfile profile;        // breathing, drift, ghostwave, etc.
+} AHDTV1Channel;
+
+AHDTV1Channel makeChannel(unsigned long ch, unsigned int sub,
+                          FrameMode mode,
+                          IllusionClass cls,
+                          IllusionProfile prof) {
+    AHDTV1Channel c;
+    c.channelId     = ch;
+    c.subchannelId  = sub;
+    c.mode          = mode;
+    c.illusionClass = cls;
+    c.profile       = prof;
+    return c;
+}
+
+
+// ============================================================================
+// 13. MAPPING CHANNELS TO PHYSICAL RF / OUTPUT SLOTS (ABSTRACT)
+// ============================================================================
+
+typedef struct {
+    double          rfCenterFreqHz;
+    double          rfSlotWidthHz;
+    unsigned int    rfSlotIndex;
+} AHDTV1PhysicalSlot;
+
+AHDTV1PhysicalSlot mapChannelToSlot(unsigned long channelId,
+                                    double rfCenterFreqHz,
+                                    double rfSlotWidthHz,
+                                    unsigned int numSlots) {
+    AHDTV1PhysicalSlot s;
+    unsigned int slot = (unsigned int)(channelId % numSlots);
+
+    s.rfCenterFreqHz = rfCenterFreqHz + (double)slot * rfSlotWidthHz;
+    s.rfSlotWidthHz  = rfSlotWidthHz;
+    s.rfSlotIndex    = slot;
+    return s;
+}
+
+
+// ============================================================================
+// 14. ILLUSION CLASS NAME TABLE
+// ============================================================================
+
+const char *illusionClassName(IllusionClass cls) {
+    switch (cls) {
+        case L0_LDTV:        return "L0 LDTV (400x300 / 400x225 virtual)";
+        case L1_SD_480:      return "L1 SD 480-class (640x480 / 640x360 virtual)";
+        case L2_HD_720:      return "L2 HD 720-class (1280x960 / 1280x720 virtual)";
+        case L3_FULLHD_1080: return "L3 Full HD 1080-class (1920x1440 / 1920x1080 virtual)";
+        case L4_4K:          return "L4 4K-class (3840x2880 / 3840x2160 virtual)";
+        case L5_8K:          return "L5 8K-class (7680x5760 / 7680x4320 virtual)";
+        case L6_16K_24KLINE: return "L6 16K / 24k-line-class (15360x11520 / 15360x8640 virtual)";
+    }
+    return "Unknown";
+}
+
+
+// ============================================================================
+// 15. FRAME MODE NAME TABLE
+// ============================================================================
+
+const char *frameModeName(FrameMode mode) {
+    switch (mode) {
+        case MODE_NTSC_30:   return "MODE_NTSC_30 (29.97 fps)";
+        case MODE_AHD_100:   return "MODE_AHD_100 (100 fps)";
+        case MODE_AHD_1000:  return "MODE_AHD_1000 (~1000 fps)";
+    }
+    return "Unknown";
+}
+
+
+// ============================================================================
+// 16. ILLUSION PROFILE NAME TABLE
+// ============================================================================
+
+const char *profileName(IllusionProfile prof) {
+    switch (prof) {
+        case PROF_BREATHING_FIELD:   return "Breathing Field";
+        case PROF_CHROMATIC_DRIFT:   return "Chromatic Drift";
+        case PROF_GHOSTWAVE_BLINK:   return "Ghostwave (Blink-Synced)";
+        case PROF_WHITEOUT:          return "Whiteout";
+        case PROF_STATIC_FIELD:      return "Static Field";
+    }
+    return "Unknown";
+}
+
+
+// ============================================================================
+// 17. CHANNEL CONFIG → ENGINE CONFIG
+// ============================================================================
+
+AHDTV1Config configFromChannel(const AHDTV1Channel *ch) {
+    return initConfig(ch->mode, ch->illusionClass, ch->profile);
+}
+
+
+// ============================================================================
+// 18. RUN A SINGLE CHANNEL (ABSTRACT ENGINE LOOP)
+// ============================================================================
+
+void runChannel(const AHDTV1Channel *ch) {
+    AHDTV1Config cfg = configFromChannel(ch);
+
+    unsigned long frameIndex = 0;
+    unsigned long fieldIndex = 0;
+
+    while (true) {
+        AHDTV1FrameState st = updateFrame(&cfg, frameIndex, fieldIndex);
+
+        // Hardware mapping:
+        // - phaseOffset  -> delay network / gating from frame start
+        // - pulseWidth   -> RC timing for dot ON duration
+        // - lumaLevel    -> transistor current driver for LED/CRT brightness
+        // - chromaPhase  -> LED color selection or symbolic “color mode”
+
+        frameIndex++;
+        fieldIndex += 2;
+    }
+}
+
+
+// ============================================================================
+// 19. EXAMPLE CHANNEL MAP
+// ============================================================================
+
+void exampleChannelMap() {
+    AHDTV1Channel ch0_1 = makeChannel(
+        0, 1,
+        MODE_NTSC_30,
+        L3_FULLHD_1080,
+        PROF_BREATHING_FIELD
+    );
+
+    AHDTV1Channel ch10_100 = makeChannel(
+        10, 100,
+        MODE_AHD_100,
+        L4_4K,
+        PROF_CHROMATIC_DRIFT
+    );
+
+    AHDTV1Channel chMax = makeChannel(
+        999999, 999,
+        MODE_AHD_1000,
+        L6_16K_24KLINE,
+        PROF_GHOSTWAVE_BLINK
+    );
+}
+
+
+// ============================================================================
+// 20. PERCEPTUAL CERTIFICATION REPORT
+// ============================================================================
+
+void printCertificationReport(const AHDTV1Channel *ch) {
+    AHDTV1Config cfg = configFromChannel(ch);
+
+    printf("Channel %lu.%03u\n", ch->channelId, ch->subchannelId);
+    printf("  Mode:           %s\n", frameModeName(ch->mode));
+    printf("  Illusion Class: %s\n", illusionClassName(ch->illusionClass));
+    printf("  Profile:        %s\n", profileName(ch->profile));
+
+    printf("  Perceptual HD:        %s\n", isPerceptualHD(&cfg) ? "YES" : "NO");
+    printf("  Perceptual UHD/24K:   %s\n", isPerceptualUHD_24K(&cfg) ? "YES" : "NO");
+}
+
+
+// ============================================================================
+// END OF POST-MCU-HOOK CODE
+// ============================================================================
