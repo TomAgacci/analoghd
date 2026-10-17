@@ -3,4 +3,6 @@ This is an analog television system to reduce the manufacturing process of displ
 Channels 1-999999
 Potential subchannels 1-999
 
+www.thingiverse.com/thing:6267817 This would be the cutout for this project.
+
 This work is licensed under a Creative Commons Attribution–NonCommercial–NoDerivatives 4.0 License.
