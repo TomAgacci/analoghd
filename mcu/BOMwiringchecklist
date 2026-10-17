@@ -1,0 +1,125 @@
+// ============================================================================
+// AHD‑TV‑1 — BILL OF MATERIALS + WIRING CHECKLIST (PRINTABLE BENCH VERSION)
+// All‑2N3904 build (QD1 optional 2N2222). Tuned for CRT Expansion PCB.
+// ============================================================================
+
+
+// ============================================================================
+// BILL OF MATERIALS (BOM)
+// ============================================================================
+
+SEMICONDUCTORS:
+- 2N3904 NPN ............................................. 20 pcs
+- 2N2222 NPN (optional for dot driver) .................... 2 pcs
+
+PASSIVES:
+- Resistors:
+  - 1 MΩ .................................................. 1
+  - 100 kΩ ................................................ 10
+  - 47 kΩ ................................................. 10
+  - 10 kΩ ................................................. 20
+  - 4.7 kΩ ................................................ 15
+  - 1–2.2 kΩ .............................................. 5
+
+- Capacitors:
+  - 22–33 pF (crystal load) ............................... 2
+  - 1 nF (divider shaping) ................................ 4
+  - 1 µF .................................................. 4
+  - 2.2 µF ................................................ 2
+  - 3.3 µF ................................................ 2
+  - 4.7 µF ................................................ 4
+  - 6.8 µF ................................................ 2
+  - 8.2 µF ................................................ 2
+  - 10 µF ................................................. 4
+
+TIMING SOURCE:
+- 3.579545 MHz NTSC crystal ............................... 1
+
+MCU:
+- ATtiny85 / Arduino Nano / similar ....................... 1
+- Jumper wires ............................................ assorted
+
+OUTPUT:
+- CRT video input pad OR LED + resistor ................... 1
+
+
+// ============================================================================
+// WIRING CHECKLIST (MARK OFF AS YOU BUILD)
+// ============================================================================
+
+STAGE 1 — MASTER OSCILLATOR (Q1)
+- [ ] Crystal between collector ↔ base node
+- [ ] 1 MΩ collector → base
+- [ ] 100 kΩ base → ground
+- [ ] Two 22–33 pF caps from crystal ends → ground
+- [ ] 10 kΩ collector → +5 V
+- [ ] Output labeled CRYSTAL_OSC_OUT
+
+STAGE 2 — DIVIDER CHAIN (Q2–Q5)
+For each divider stage:
+- [ ] 10 kΩ collector → +5 V
+- [ ] 47 kΩ base resistor from previous stage
+- [ ] 1 nF shaping cap → ground
+- [ ] Outputs labeled:
+      FR_30, FR_100, FR_1000, FIELD_SYNC, PHASE_CLK
+
+STAGE 3 — MODE SELECTOR (QM1–QM3)
+- [ ] QM1 collector → FR_30
+- [ ] QM2 collector → FR_100
+- [ ] QM3 collector → FR_1000
+- [ ] Emitters → ground
+- [ ] Collectors OR’d → FRAME_CLK_OUT
+- [ ] MCU MODE_0 / MODE_1 → bases via 4.7–10 kΩ
+
+STAGE 4 — ILLUSION CLASS SELECTOR (QC0–QC6)
+RC networks:
+- [ ] L0: 100 kΩ + 10 µF
+- [ ] L1: 100 kΩ + 8.2 µF
+- [ ] L2: 100 kΩ + 6.8 µF
+- [ ] L3: 100 kΩ + 4.7 µF
+- [ ] L4: 47 kΩ + 3.3 µF
+- [ ] L5: 47 kΩ + 2.2 µF
+- [ ] L6: 47 kΩ + 1 µF
+Selector:
+- [ ] QCx collectors → PW_Lx_NODE
+- [ ] QCx emitters → PULSE_CTRL_OUT
+- [ ] MCU CLASS_0/1/2 → base decode
+
+STAGE 5 — PROFILE SELECTOR (QP0–QP3)
+Envelope RC networks:
+- [ ] Breathing: 100 kΩ + 10 µF
+- [ ] Drift: 100 kΩ + 4.7–10 µF
+- [ ] Ghostwave: 47 kΩ + 4.7 µF
+- [ ] Whiteout: 10 kΩ + 1 µF
+Selector:
+- [ ] QP0–QP3 collectors → envelope nodes
+- [ ] Emitters → LUMA_ENV_IN
+- [ ] MCU PROFILE_0/1 → base decode
+
+STAGE 6 — DOT DRIVER (QD1)
+- [ ] QD1 base → (PULSE_CTRL_OUT + LUMA_ENV_IN) via 4.7 kΩ
+- [ ] QD1 emitter → ground
+- [ ] QD1 collector → CRT video input through 1–2.2 kΩ
+- [ ] OR LED + resistor if using LED dot
+
+STAGE 7 — MCU HOOK
+- [ ] PIN_FIELD_SYNC → FIELD_SYNC node via 10 kΩ
+- [ ] MODE_0 / MODE_1 → mode selector bases
+- [ ] CLASS_0 / CLASS_1 / CLASS_2 → class selector bases
+- [ ] PROFILE_0 / PROFILE_1 → profile selector bases
+- [ ] MCU ground → analog ground
+- [ ] MCU +5 V → analog +5 V
+
+FINAL POWER‑ON CHECK:
+- [ ] All grounds common
+- [ ] +5 V stable
+- [ ] Oscillator running
+- [ ] Divider taps present
+- [ ] MCU receiving FIELD_SYNC
+- [ ] Dot driver connected
+- [ ] No floating selector bases
+- [ ] No shorted RC networks
+
+// ============================================================================
+// END — PRINTABLE BUILD SHEET
+// ============================================================================
