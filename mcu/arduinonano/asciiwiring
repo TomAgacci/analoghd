@@ -40,3 +40,102 @@ GND → Nano GND
 +5V → LM1881 Pin 1
 GND → LM1881 Pin 8
 GND → TV Composite Ground
+
+┌──────────────────────────────────────────────────────────┐
+│                      AHD-TV-1 PCB                        │
+├──────────────────────────────────────────────────────────┤
+│  [LM1881 SYNC BLOCK]                                     │
+│  ┌──────────────┐   VSYNC → Nano D2                      │
+│  │ LM1881       │   GND   → Common                       │
+│  │ + caps       │   +5V   → Regulated 5V                 │
+│  └──────────────┘                                        │
+│                                                          │
+│  [NANO HEADER]                                           │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │ D2: VSYNC IN                                        │  │
+│  │ D9: LUMA OUT → 1k → TV IN                           │  │
+│  │ D10: CHROMA OUT → 1k → TV IN                        │  │
+│  │ D3–D11: BUTTON INPUTS                               │  │
+│  └────────────────────────────────────────────────────┘   │
+│                                                          │
+│  [BUTTON ROW]                                            │
+│  L0  L1  L2  L3  L4  L5  L6                              │
+│  ●──●──●──●──●──●──●  (each → GND, INPUT_PULLUP)         │
+│                                                          │
+│  [TV OUTPUT PAD]                                         │
+│  ┌──────────────┐                                        │
+│  │ COMPOSITE IN │◄── 1k from D9/D10                      │
+│  └──────────────┘                                        │
+└──────────────────────────────────────────────────────────┘
+
+Breadboard Layout
+
+Breadboard Top Rail: +5V
+Breadboard Bottom Rail: GND
+
+Left Side: LM1881
+---------------------------------------
+ LM1881 Pin 1 → +5V rail
+ LM1881 Pin 8 → GND rail
+ LM1881 Pin 2 → Composite Video In
+ LM1881 Pin 3 → VSYNC → Nano D2
+ LM1881 Pin 5 → GND
+ LM1881 Pin 6/7 optional
+
+Center: Arduino Nano
+---------------------------------------
+ Nano +5V → +5V rail
+ Nano GND → GND rail
+
+ Nano D2  ← VSYNC from LM1881
+ Nano D9  → 1k → TV Composite In
+ Nano D10 → 1k → TV Composite In (dual pulse)
+
+Right Side: Buttons (mode 1)
+---------------------------------------
+ BTN_L0: one side → D3, other → GND
+ BTN_L1: one side → D4, other → GND
+ BTN_L2: one side → D5, other → GND
+ BTN_L3: one side → D6, other → GND
+ BTN_L4: one side → D7, other → GND
+ BTN_L5: one side → D8, other → GND
+ BTN_L6: one side → D11, other → GND
+
+TV Composite Input
+---------------------------------------
+ TV IN → from 1k resistors (D9, D10)
+ TV GND → GND rail
+
+Combined LM1881 + Nano + TV Schematic (ASCII)
+
+                   ┌───────────────┐
+                   │ 480i Source    │
+                   └───────┬───────┘
+                           │ Composite
+                           ▼
+                   ┌──────────────────┐
+                   │     LM1881       │
+                   │  Sync Stripper   │
+                   └──────────────────┘
+                   Pin 2 ← Composite In
+                   Pin 3 → VSYNC ───────────────┐
+                   Pin 1 → +5V                  │
+                   Pin 8 → GND                  │
+                                                ▼
+                                      ┌──────────────────┐
+                                      │  Arduino Nano     │
+                                      └──────────────────┘
+                                      D2 (INT0) ← VSYNC
+                                      D9 (OC1A) → 1k → TV IN
+                                      D10(OC1B) → 1k → TV IN
+                                      GND → TV GND
+
+Buttons (mode 1):
+D3–D11 → buttons → GND
+
+Power:
++5V → Nano +5V
+GND → Nano GND
++5V → LM1881 Pin 1
+GND → LM1881 Pin 8
+
