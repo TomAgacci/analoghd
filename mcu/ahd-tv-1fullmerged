@@ -1,0 +1,422 @@
+// ============================================================================
+// AHD-TV-1 FULL MERGED FILE
+// MCU HOOK + ANALOG ENGINE SPEC + SELECTOR LOGIC (BEHAVIORAL C-LIKE DESCRIPTION)
+// ============================================================================
+
+#include <math.h>
+#include <stdio.h>
+#include <stdbool.h>
+
+// ---------------------------------------------------------------------------
+// 1. MASTER CONSTANTS
+// ---------------------------------------------------------------------------
+
+const double F_BURST_NTSC      = 3.579545e6;
+const double F_FRAME_NTSC      = 29.97;
+const double F_FIELD_NTSC      = 59.94;
+const double F_HORIZ_NTSC      = 15734.0;
+
+const double F_FRAME_100       = 100.0;
+const double F_FRAME_1000      = 1000.0;
+
+
+// ---------------------------------------------------------------------------
+// 2. ENUMS: FRAME MODES, ILLUSION CLASSES, PROFILES
+// ---------------------------------------------------------------------------
+
+typedef enum {
+    MODE_NTSC_30 = 0,
+    MODE_AHD_100 = 1,
+    MODE_AHD_1000 = 2
+} FrameMode;
+
+typedef enum {
+    L0_LDTV        = 0,
+    L1_SD_480      = 1,
+    L2_HD_720      = 2,
+    L3_FULLHD_1080 = 3,
+    L4_4K          = 4,
+    L5_8K          = 5,
+    L6_16K_24KLINE = 6
+} IllusionClass;
+
+typedef enum {
+    PROF_BREATHING_FIELD = 0,
+    PROF_CHROMATIC_DRIFT = 1,
+    PROF_GHOSTWAVE_BLINK = 2,
+    PROF_WHITEOUT        = 3,
+    PROF_STATIC_FIELD    = 4
+} IllusionProfile;
+
+
+// ---------------------------------------------------------------------------
+// 3. CONFIG + FRAME STATE STRUCTS
+// ---------------------------------------------------------------------------
+
+typedef struct {
+    FrameMode       mode;
+    IllusionClass   illusionClass;
+    IllusionProfile profile;
+    double          f_frame;
+    double          t_frame;
+    double          f_field;
+    double          f_horiz;
+} AHDTV1Config;
+
+typedef struct {
+    unsigned long   frameIndex;
+    unsigned long   fieldIndex;
+    double          lumaLevel;
+    double          chromaPhase;
+    double          phaseOffset;
+    double          pulseWidth;
+} AHDTV1FrameState;
+
+
+// ---------------------------------------------------------------------------
+// 4. CONFIG INITIALIZATION
+// ---------------------------------------------------------------------------
+
+AHDTV1Config initConfig(FrameMode mode, IllusionClass cls, IllusionProfile prof) {
+    AHDTV1Config cfg;
+    cfg.mode          = mode;
+    cfg.illusionClass = cls;
+    cfg.profile       = prof;
+
+    switch (mode) {
+        case MODE_NTSC_30:
+            cfg.f_frame = F_FRAME_NTSC;
+            cfg.f_field = F_FIELD_NTSC;
+            cfg.f_horiz = F_HORIZ_NTSC;
+            break;
+        case MODE_AHD_100:
+            cfg.f_frame = F_FRAME_100;
+            cfg.f_field = 2.0 * F_FRAME_100;
+            cfg.f_horiz = F_HORIZ_NTSC;
+            break;
+        case MODE_AHD_1000:
+            cfg.f_frame = F_FRAME_1000;
+            cfg.f_field = 2.0 * F_FRAME_1000;
+            cfg.f_horiz = F_HORIZ_NTSC;
+            break;
+    }
+
+    cfg.t_frame = 1.0 / cfg.f_frame;
+    return cfg;
+}
+
+
+// ---------------------------------------------------------------------------
+// 5. ILLUSION PROFILE FUNCTIONS
+// ---------------------------------------------------------------------------
+
+double breathingLuma(unsigned long frameIndex, unsigned long cycleFrames) {
+    double phase = (double)frameIndex / (double)cycleFrames;
+    return 0.5 + 0.3 * sin(2.0 * M_PI * phase);
+}
+
+double chromaticDriftPhase(unsigned long fieldIndex) {
+    unsigned long step = fieldIndex % 4;
+    return (double)step / 4.0;
+}
+
+int ghostwaveGate(unsigned long frameIndex, unsigned long cycleFrames) {
+    unsigned long pos = frameIndex % cycleFrames;
+    if (pos < cycleFrames / 3)          return -1;
+    else if (pos < 2 * cycleFrames / 3) return 0;
+    else                                return +1;
+}
+
+double ghostwaveLuma(int gateState) {
+    switch (gateState) {
+        case -1: return 1.0;
+        case  0: return 0.2;
+        case +1: return 0.6;
+        default: return 0.5;
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// 6. PHASE OFFSET + PULSE WIDTH
+// ---------------------------------------------------------------------------
+
+double computePhaseOffset(const AHDTV1Config *cfg, unsigned long frameIndex) {
+    double T_H = 1.0 / cfg->f_horiz;
+    unsigned long k = frameIndex % 100;
+    return (double)k * T_H;
+}
+
+double computePulseWidth(const AHDTV1Config *cfg, IllusionClass cls) {
+    switch (cls) {
+        case L0_LDTV:        return 0.5 * cfg->t_frame;
+        case L1_SD_480:      return 0.4 * cfg->t_frame;
+        case L2_HD_720:      return 0.3 * cfg->t_frame;
+        case L3_FULLHD_1080: return 0.2 * cfg->t_frame;
+        case L4_4K:          return 0.1 * cfg->t_frame;
+        case L5_8K:          return 0.05 * cfg->t_frame;
+        case L6_16K_24KLINE: return 0.02 * cfg->t_frame;
+    }
+    return 0.2 * cfg->t_frame;
+}
+
+
+// ---------------------------------------------------------------------------
+// 7. FRAME UPDATE LOGIC
+// ---------------------------------------------------------------------------
+
+AHDTV1FrameState updateFrame(const AHDTV1Config *cfg,
+                             unsigned long frameIndex,
+                             unsigned long fieldIndex) {
+    AHDTV1FrameState st;
+    st.frameIndex = frameIndex;
+    st.fieldIndex = fieldIndex;
+
+    switch (cfg->profile) {
+        case PROF_BREATHING_FIELD:
+            st.lumaLevel   = breathingLuma(frameIndex, 60);
+            st.chromaPhase = 0.0;
+            break;
+
+        case PROF_CHROMATIC_DRIFT:
+            st.lumaLevel   = 0.7;
+            st.chromaPhase = chromaticDriftPhase(fieldIndex);
+            break;
+
+        case PROF_GHOSTWAVE_BLINK: {
+            int gate       = ghostwaveGate(frameIndex, 90);
+            st.lumaLevel   = ghostwaveLuma(gate);
+            st.chromaPhase = 0.0;
+            break;
+        }
+
+        case PROF_WHITEOUT:
+            st.lumaLevel   = 1.0;
+            st.chromaPhase = 0.0;
+            break;
+
+        case PROF_STATIC_FIELD:
+        default:
+            st.lumaLevel   = 0.5;
+            st.chromaPhase = 0.0;
+            break;
+    }
+
+    st.phaseOffset = computePhaseOffset(cfg, frameIndex);
+    st.pulseWidth  = computePulseWidth(cfg, cfg->illusionClass);
+
+    return st;
+}
+
+
+// ---------------------------------------------------------------------------
+// 8. PERCEPTUAL CERTIFICATION
+// ---------------------------------------------------------------------------
+
+bool passesMotionSmoothness(const AHDTV1Config *cfg) {
+    return (cfg->illusionClass >= L3_FULLHD_1080);
+}
+
+bool passesFieldUniformity(const AHDTV1Config *cfg) {
+    return (cfg->illusionClass >= L2_HD_720);
+}
+
+bool passesColorStability(const AHDTV1Config *cfg) {
+    return (cfg->illusionClass >= L3_FULLHD_1080);
+}
+
+bool passesGhostwaveCuts(const AHDTV1Config *cfg) {
+    return (cfg->illusionClass >= L4_4K);
+}
+
+bool isPerceptualHD(const AHDTV1Config *cfg) {
+    return passesMotionSmoothness(cfg)
+        && passesFieldUniformity(cfg)
+        && passesColorStability(cfg)
+        && passesGhostwaveCuts(cfg);
+}
+
+bool isPerceptualUHD_24K(const AHDTV1Config *cfg) {
+    return (cfg->illusionClass >= L5_8K) && isPerceptualHD(cfg);
+}
+
+
+// ---------------------------------------------------------------------------
+// 9. CHANNEL / SUBCHANNEL SPACE
+// ---------------------------------------------------------------------------
+
+typedef struct {
+    unsigned long   channelId;
+    unsigned int    subchannelId;
+    FrameMode       mode;
+    IllusionClass   illusionClass;
+    IllusionProfile profile;
+} AHDTV1Channel;
+
+AHDTV1Channel makeChannel(unsigned long ch, unsigned int sub,
+                          FrameMode mode,
+                          IllusionClass cls,
+                          IllusionProfile prof) {
+    AHDTV1Channel c;
+    c.channelId     = ch;
+    c.subchannelId  = sub;
+    c.mode          = mode;
+    c.illusionClass = cls;
+    c.profile       = prof;
+    return c;
+}
+
+AHDTV1Config configFromChannel(const AHDTV1Channel *ch) {
+    return initConfig(ch->mode, ch->illusionClass, ch->profile);
+}
+
+
+// ---------------------------------------------------------------------------
+// 10. NAMES
+// ---------------------------------------------------------------------------
+
+const char *illusionClassName(IllusionClass cls) {
+    switch (cls) {
+        case L0_LDTV:        return "L0 LDTV";
+        case L1_SD_480:      return "L1 SD 480-class";
+        case L2_HD_720:      return "L2 HD 720-class";
+        case L3_FULLHD_1080: return "L3 Full HD 1080-class";
+        case L4_4K:          return "L4 4K-class";
+        case L5_8K:          return "L5 8K-class";
+        case L6_16K_24KLINE: return "L6 16K / 24k-line-class";
+    }
+    return "Unknown";
+}
+
+const char *frameModeName(FrameMode mode) {
+    switch (mode) {
+        case MODE_NTSC_30:   return "MODE_NTSC_30";
+        case MODE_AHD_100:   return "MODE_AHD_100";
+        case MODE_AHD_1000:  return "MODE_AHD_1000";
+    }
+    return "Unknown";
+}
+
+const char *profileName(IllusionProfile prof) {
+    switch (prof) {
+        case PROF_BREATHING_FIELD:   return "Breathing Field";
+        case PROF_CHROMATIC_DRIFT:   return "Chromatic Drift";
+        case PROF_GHOSTWAVE_BLINK:   return "Ghostwave";
+        case PROF_WHITEOUT:          return "Whiteout";
+        case PROF_STATIC_FIELD:      return "Static Field";
+    }
+    return "Unknown";
+}
+
+
+// ---------------------------------------------------------------------------
+// 11. RUN CHANNEL (ABSTRACT ENGINE LOOP)
+// ---------------------------------------------------------------------------
+
+void runChannel(const AHDTV1Channel *ch) {
+    AHDTV1Config cfg = configFromChannel(ch);
+
+    unsigned long frameIndex = 0;
+    unsigned long fieldIndex = 0;
+
+    while (true) {
+        AHDTV1FrameState st = updateFrame(&cfg, frameIndex, fieldIndex);
+
+        // Map to hardware:
+        // - st.phaseOffset -> delay/gating
+        // - st.pulseWidth  -> RC timing
+        // - st.lumaLevel   -> dot current
+        // - st.chromaPhase -> LED color / symbolic chroma
+
+        frameIndex++;
+        fieldIndex += 2;
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// 12. MCU HOOK (PIN-LEVEL CONTROL)
+// ---------------------------------------------------------------------------
+
+// Pin defines (example)
+#define PIN_FIELD_SYNC   2
+#define PIN_MODE_0       3
+#define PIN_MODE_1       4
+#define PIN_CLASS_0      5
+#define PIN_CLASS_1      6
+#define PIN_CLASS_2      7
+#define PIN_PROFILE_0    8
+#define PIN_PROFILE_1    9
+
+volatile bool safeToSwitch = false;
+
+FrameMode       currentMode    = MODE_NTSC_30;
+IllusionClass   currentClass   = L3_FULLHD_1080;
+IllusionProfile currentProfile = PROF_BREATHING_FIELD;
+
+void IRAM_ATTR onFieldSyncInterrupt() {
+    safeToSwitch = true;
+}
+
+void writeModePins(FrameMode m) {
+    switch (m) {
+        case MODE_NTSC_30:
+            digitalWrite(PIN_MODE_0, LOW);
+            digitalWrite(PIN_MODE_1, LOW);
+            break;
+        case MODE_AHD_100:
+            digitalWrite(PIN_MODE_0, HIGH);
+            digitalWrite(PIN_MODE_1, LOW);
+            break;
+        case MODE_AHD_1000:
+            digitalWrite(PIN_MODE_0, LOW);
+            digitalWrite(PIN_MODE_1, HIGH);
+            break;
+    }
+}
+
+void writeClassPins(IllusionClass c) {
+    digitalWrite(PIN_CLASS_0, (c >> 0) & 1);
+    digitalWrite(PIN_CLASS_1, (c >> 1) & 1);
+    digitalWrite(PIN_CLASS_2, (c >> 2) & 1);
+}
+
+void writeProfilePins(IllusionProfile p) {
+    digitalWrite(PIN_PROFILE_0, (p >> 0) & 1);
+    digitalWrite(PIN_PROFILE_1, (p >> 1) & 1);
+}
+
+void setup() {
+    pinMode(PIN_FIELD_SYNC, INPUT);
+    pinMode(PIN_MODE_0, OUTPUT);
+    pinMode(PIN_MODE_1, OUTPUT);
+    pinMode(PIN_CLASS_0, OUTPUT);
+    pinMode(PIN_CLASS_1, OUTPUT);
+    pinMode(PIN_CLASS_2, OUTPUT);
+    pinMode(PIN_PROFILE_0, OUTPUT);
+    pinMode(PIN_PROFILE_1, OUTPUT);
+
+    attachInterrupt(digitalPinToInterrupt(PIN_FIELD_SYNC),
+                    onFieldSyncInterrupt,
+                    RISING);
+
+    writeModePins(currentMode);
+    writeClassPins(currentClass);
+    writeProfilePins(currentProfile);
+}
+
+void loop() {
+    if (safeToSwitch) {
+        writeModePins(currentMode);
+        writeClassPins(currentClass);
+        writeProfilePins(currentProfile);
+        safeToSwitch = false;
+    }
+
+    // Here you’d add UI / serial / preset logic to change currentMode/currentClass/currentProfile.
+}
+
+
+// ============================================================================
+// END FULL MERGED FILE
+// ============================================================================
