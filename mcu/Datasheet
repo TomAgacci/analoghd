@@ -1,0 +1,82 @@
+Datasheet‑style version (concise)
+1. Overview
+Name: AHD‑TV‑1 Single‑Dot Illusion Engine
+
+Type: Analog timing + envelope system with optional MCU control
+
+Output: Single bright dot (CRT or LED) with HD/UHD‑class temporal illusion
+
+2. Modes
+Frame rates:
+
+MODE_NTSC_30 → ~29.97 fps
+
+MODE_AHD_100 → 100 fps
+
+MODE_AHD_1000 → ~1000 fps
+
+Illusion classes (virtual resolution):
+
+L0 → LDTV (~400×300)
+
+L1 → SD 480
+
+L2 → HD 720
+
+L3 → Full HD 1080
+
+L4 → 4K
+
+L5 → 8K
+
+L6 → 16K / 24k‑line‑class
+
+3. Profiles
+Breathing Field: smooth luma sinusoid
+
+Chromatic Drift: color phase cycling
+
+Ghostwave: blink‑synced scene cuts
+
+Whiteout: full‑field flash
+
+Static Field: constant brightness
+
+4. Hardware blocks
+Master oscillator: 3.579545 MHz crystal (NTSC burst)
+
+Divider chain: transistor flip‑flops → frame, field, phase clocks
+
+Selectors: transistor networks for:
+
+frame‑rate tap (mode)
+
+pulse‑width/phase network (class)
+
+envelope RC network (profile)
+
+Dot driver: NPN transistor driving CRT video input or LED
+
+5. MCU hook
+Input: field sync pulse (~60 Hz or chosen rate)
+
+Outputs (7 pins):
+
+MODE_SEL[1:0]
+
+CLASS_SEL[2:0]
+
+PROFILE_SEL[1:0]
+
+Function:
+
+Flip mode/class/profile only at field boundaries
+
+Does not generate timing; only selects analog networks
+
+6. Use cases
+CRT center‑spot illusion box
+
+LED‑dot “HD illusion” display
+
+Hybrid analog/digital experiment with MCU‑driven presets
